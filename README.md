@@ -14,7 +14,7 @@ Note that the few comments are in italian; I plan to fix this as soon as possibl
 
 # Installation
 
-* install the required libraries from requirements.txt; note that the current version of the bridge uses flask, but I will switch to FastAPI very soon
+* install the required libraries from requirements.txt
 * copy the openai.py in the script directory for your LibreOffice; the exact location varies depending on the OS; on Windows is %AppData%\Roaming\LibreOffice\4\user\Scripts\python
 * start the bridge with something like
 ```
@@ -25,7 +25,6 @@ The bridge expects to find your API key in .openai_key.txt.
 
 # Future plans
 
-* move to FastAPI (this is a prototype which was spitted out by ChatGPT)
 * select/use different prompts
 * add more back-ends
 * create an add-on instead of simple macros
