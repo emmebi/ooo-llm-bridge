@@ -1,20 +1,22 @@
+import json
+import os
+import queue
+import threading
+import traceback
+import urllib.request
+
 import uno
 import unohelper
-import json
-import urllib.request
-import threading
-import queue
-import os
-import traceback
 from com.sun.star.awt import XActionListener
 
 # =============================
 # Config
 # =============================
-OPENAI_LOCAL_URL = "http://localhost:5000/ask"  # Flask bridge endpoint
+OPENAI_LOCAL_URL = "http://127.0.0.1:8000/ask"  # Flask bridge endpoint
 LOG_PATH = os.path.join(os.path.expanduser("~"), "chatgpt_macro.log")
 
 _LISTENER_REGISTRY = {}
+
 
 # =============================
 # Utilities
@@ -73,7 +75,9 @@ def _http_post_json(url: str, payload: dict) -> dict:
 
 def _create_modeless_dialog(ctx, smgr, frame, initial_text: str):
     # Dialog model
-    dialog_model = smgr.createInstanceWithContext("com.sun.star.awt.UnoControlDialogModel", ctx)
+    dialog_model = smgr.createInstanceWithContext(
+        "com.sun.star.awt.UnoControlDialogModel", ctx
+    )
     dialog_model.Title = "Risposta da ChatGPT"
     dialog_model.Width = 260
     dialog_model.Height = 180
@@ -82,7 +86,7 @@ def _create_modeless_dialog(ctx, smgr, frame, initial_text: str):
     edit_model = dialog_model.createInstance("com.sun.star.awt.UnoControlEditModel")
     edit_model.Name = "txtOutput"
     edit_model.MultiLine = True
-    edit_model.HScroll = False   # wrap automatico
+    edit_model.HScroll = False  # wrap automatico
     edit_model.VScroll = True
     edit_model.ReadOnly = True
     edit_model.Border = 1
@@ -129,7 +133,9 @@ def _start_background_request_and_timer(ctx, smgr, dialog, text_to_send: str):
     # --- Worker in thread separato (non blocca la GUI) ---
     def worker():
         try:
-            resp = _http_post_json(OPENAI_LOCAL_URL, {"text": text_to_send})
+            resp = _http_post_json(
+                OPENAI_LOCAL_URL, {"text": text_to_send, "model": "gpt-4.1"}
+            )
             reply = resp.get("reply", "[Nessuna risposta]")
             q.put(reply)
         except Exception as e:
@@ -141,6 +147,7 @@ def _start_background_request_and_timer(ctx, smgr, dialog, text_to_send: str):
     # --- Poll periodico tramite threading.Timer ---
     def poll_queue():
         import queue
+
         try:
             reply = q.get_nowait()
             # Aggiorna la textarea con la risposta
@@ -186,7 +193,10 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             toolkit = frame.getContainerWindow().getToolkit()
             box = toolkit.createMessageBox(
                 frame.getContainerWindow(),
-                "infobox", 1, "ChatGPT", "Nessun testo da inviare."
+                "infobox",
+                1,
+                "ChatGPT",
+                "Nessun testo da inviare.",
             )
             box.execute()
             return
@@ -207,7 +217,10 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             toolkit = frame.getContainerWindow().getToolkit()
             box = toolkit.createMessageBox(
                 frame.getContainerWindow(),
-                "errorbox", 1, "Errore macro", "Vedi log: " + LOG_PATH
+                "errorbox",
+                1,
+                "Errore macro",
+                "Vedi log: " + LOG_PATH,
             )
             box.execute()
         except Exception:

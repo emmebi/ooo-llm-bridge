@@ -1,0 +1,22 @@
+meta {
+  name: chat
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://127.0.0.1:8000/ask
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "text": "please write something to answer this sample text",
+    "model": "gpt-4.1"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

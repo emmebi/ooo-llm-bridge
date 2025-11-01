@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "ooo_llm_bridge",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
