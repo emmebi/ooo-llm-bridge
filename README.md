@@ -16,9 +16,9 @@ Note that the few comments are in italian; I plan to fix this as soon as possibl
 
 * install the required libraries from requirements.txt
 * copy the openai.py in the script directory for your LibreOffice; the exact location varies depending on the OS; on Windows is %AppData%\Roaming\LibreOffice\4\user\Scripts\python
-* start the bridge with something like
+* start the bridge from within the src/ directory with the command
 ```
-python main.py
+uvicorn ooo_llm_bridge.main:app
 ```
 
 The bridge expects to find your API key in .openai_key.txt. 

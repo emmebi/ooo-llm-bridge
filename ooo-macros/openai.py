@@ -4,6 +4,7 @@ import queue
 import threading
 import traceback
 import urllib.request
+from typing import Optional
 
 import uno
 import unohelper
@@ -124,7 +125,9 @@ def _create_modeless_dialog(ctx, smgr, frame, initial_text: str):
     return dialog
 
 
-def _start_background_request_and_timer(ctx, smgr, dialog, text_to_send: str):
+def _start_background_request_and_timer(
+    ctx, smgr, dialog, text_to_send: str, segment_uuid: Optional[str] = None
+):
     """Esegue la richiesta HTTP in un thread e aggiorna la textarea non bloccando la GUI."""
 
     edit_ctrl = dialog.getControl("txtOutput")
@@ -134,7 +137,8 @@ def _start_background_request_and_timer(ctx, smgr, dialog, text_to_send: str):
     def worker():
         try:
             resp = _http_post_json(
-                OPENAI_LOCAL_URL, {"text": text_to_send, "model": "gpt-4.1"}
+                OPENAI_LOCAL_URL,
+                {"text": text_to_send, "model": "gpt-5.1", "uuid": segment_uuid},
             )
             reply = resp.get("reply", "[Nessuna risposta]")
             q.put(reply)
@@ -176,10 +180,20 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
         view_cursor = model.getViewCursor()
         selection = model.getSelection()
 
+        segment_uuid = None
         # Decide what to send: selection, else from start to cursor
         if selection.getCount() > 0 and selection.getByIndex(0).getString().strip():
             text_range = selection.getByIndex(0)
             input_text = text_range.getString()
+
+            bm = get_last_bookmark_in_selection()
+
+            if bm:
+                try:
+                    segment_uuid = bm.getName()
+                except Exception:
+                    pass
+
         else:
             cursor_pos = view_cursor.getStart()
             start_cursor = doc.Text.createTextCursor()
@@ -203,8 +217,10 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
 
         # Create modeless dialog and start background request
         frame = model.getFrame()
-        dialog = _create_modeless_dialog(ctx, smgr, frame, "Richiesta in corso…")
-        _start_background_request_and_timer(ctx, smgr, dialog, input_text)
+        dialog = _create_modeless_dialog(
+            ctx, smgr, frame, "Richiesta in corso..." + str(segment_uuid)
+        )
+        _start_background_request_and_timer(ctx, smgr, dialog, input_text, segment_uuid)
 
     except Exception:
         _log_exc()
@@ -225,3 +241,98 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             box.execute()
         except Exception:
             pass
+
+
+def get_last_bookmark_in_selection():
+    """
+    Return the last bookmark (UNO Bookmark object) that overlaps
+    the current selection in the active Writer document, or None
+    if no bookmark overlaps the selection.
+
+    "Overlaps" means:
+      - bookmark is entirely inside the selection, OR
+      - selection is entirely inside the bookmark, OR
+      - they partially intersect in any way.
+
+    This function uses UNO's compareRegionStarts/compareRegionEnds
+    on the XText of the main story, which is the only reliable way
+    to reason about positions in Writer (no offset math).
+    """
+    doc = XSCRIPTCONTEXT.getDocument()  # noqa: F821
+    selection = doc.getCurrentSelection()
+
+    # No selection → nothing to do
+    if selection is None or selection.getCount() == 0:
+        return None
+
+    # We assume a single selection range (the normal case in Writer)
+    sel_range = selection.getByIndex(0)  # com.sun.star.text.XTextRange
+    sel_text = sel_range.getText()  # com.sun.star.text.XText
+
+    bookmarks = doc.getBookmarks()  # XNameAccess
+    bookmark_names = bookmarks.getElementNames()
+
+    last_bookmark = None
+    last_anchor = None
+
+    for name in bookmark_names:
+        _log(f"bookmark: checking name={name}")
+
+        bm = bookmarks.getByName(name)  # com.sun.star.text.Bookmark
+        anchor = bm.getAnchor()  # XTextRange for the bookmark
+
+        # Ignore bookmarks in other "stories" (headers, footers, notes, etc.)
+        if anchor.getText() != sel_text:
+            continue
+
+        # Compare the bookmark range vs the selection range.
+        # start_rel < 0 → bookmark starts before selection
+        # start_rel = 0 → bookmark starts with selection
+        # start_rel > 0 → bookmark starts after selection
+        start_rel = sel_text.compareRegionStarts(anchor, sel_range)
+
+        # end_rel < 0 → bookmark ends before selection
+        # end_rel = 0 → bookmark ends with selection
+        # end_rel > 0 → bookmark ends after selection
+        end_rel = sel_text.compareRegionEnds(anchor, sel_range)
+
+        # Overlap condition (very important):
+        # Two ranges do NOT overlap iff:
+        #   - bookmark ends before selection starts (end_rel < 0), OR
+        #   - bookmark starts after selection ends (start_rel > 0)
+        #
+        # So they DO overlap iff NOT (end_rel < 0 or start_rel > 0).
+        if end_rel < 0 or start_rel > 0:
+            # No overlap → skip
+            continue
+
+        _log(f"bookmark: bookmark name={name} is inside the selection")
+
+        # At this point, the bookmark overlaps the selection.
+        # We want the "last" one: the one whose *start* is furthest
+        # along the story.
+        if last_anchor is None:
+            last_bookmark = bm
+            last_anchor = anchor
+        else:
+            # Compare starts of this anchor vs last_anchor
+            # cmp < 0 → this bookmark starts before last_anchor
+            # cmp = 0 → same start
+            # cmp > 0 → this bookmark starts after last_anchor
+            cmp = sel_text.compareRegionStarts(anchor, last_anchor)
+            if cmp >= 0:
+                last_bookmark = bm
+                last_anchor = anchor
+
+    return last_bookmark
+
+
+def get_abs_offset(text, rng) -> int:
+    """
+    Restituisce la posizione assoluta (in caratteri) dell'inizio di rng
+    all'interno di text (XText).
+    """
+    cursor = text.createTextCursor()
+    cursor.gotoStart(False)  # vai all'inizio
+    cursor.gotoRange(rng, True)  # seleziona dall'inizio fino a rng
+    return len(cursor.getString())

@@ -1,0 +1,264 @@
+{
+  "meta": {
+    "project": "Il Regno Proibito",
+    "version": "1.0",
+    "language": "it",
+    "description": "Contesto editoriale globale per il workflow OOO + FastAPI + OpenAI"
+  },
+  "style": {
+    "global_short": "Italiano narrativo con tono tardo-medievale e proto-rinascimentale mediterraneo. Niente slang o modernismi espliciti.",
+    "tone": "Realistico, sensoriale, con attenzione ai dettagli materiali (luce, odori, superfici, clima). Temi di memoria, identità, superstizione, politica di città-stato.",
+    "narrative_rules": [
+      "Mostrare emozioni e informazioni attraverso gesti, dialoghi e dettagli concreti, non spiegandole in modo didascalico.",
+      "Evitare aggettivi ridondanti, ripetizioni ravvicinate e metafore eccessive.",
+      "Privilegiare verbi specifici rispetto ad avverbi generici.",
+      "Alternare descrizione e azione per mantenere il ritmo.",
+      "Non usare concetti psicologici o termini troppo moderni."
+    ],
+    "dialogue_rules": [
+      "Dialoghi rapidi, diretti, con sottotesto implicito.",
+      "Nessuno slang moderno, niente espressioni contemporanee come 'ok', 'tipo', 'insomma' nel senso attuale.",
+      "La distanza sociale (nobile, cittadino, performer, soldato) va resa con appellativi, pronomi, rispetto o confidenza.",
+      "Ogni personaggio ha una propria cadenza e registro; la voce va mantenuta coerente.",
+      "L'ironia va usata con misura e radicata nel contesto sociale."
+    ],
+    "pacing": "Ritmo composto: scene intime e dialogate si alternano a momenti di tensione contenuta o rituale. Evitare lunghe pause descrittive senza funzione narrativa.",
+    "prohibitions": [
+      "Niente riferimenti a tecnologia moderna o cultura pop.",
+      "Niente terminologia psicologica moderna.",
+      "Niente rottura della quarta parete."
+    ]
+  },
+  "world": {
+    "setting_brief": "Il Regno Proibito comprende terre, città-stato e ducati. Il Ducato di Solferina è uno degli stati principali. Guardiavecchia è una città portuale di confine con forte identità civica.",
+    "geography": {
+      "ducato_di_solferina": "Stato organizzato, con Duca, università, ranger (Stigari) e città come Solferina e Guardiavecchia.",
+      "guardiavecchia": "Città portuale murata, con Fortezza, quartieri interni ed esterni, taverne, mercati e accesso al mare.",
+      "luoghi_chiave": [
+        "Canto del Fiume (taverna, principale luogo delle esibizioni di Nesviana).",
+        "Fortezza di Guardiavecchia (sede dei Custodi della Torre).",
+        "Mura Vecchie e Mura Nuove.",
+        "Borgo Nuovo (zona commerciale più recente).",
+        "Ponte Stembro.",
+        "Lungoserra Caravella.",
+        "Via Vecchia e altre vie interne.",
+        "Quartiere della Fortezza.",
+        "Fiumaccio (zona artigiana esterna alle mura, per mestieri 'sporchi')."
+      ]
+    },
+    "religion_and_cults": {
+      "aquilante": "Figura protettiva, spesso invocata. Il gesto dello scudo (mano al petto come a reggere uno scudo) è la formula rituale.",
+      "marinastra": "Legata al mare, alla luce sulla riva, al ritorno di chi affronta le acque.",
+      "altri_culti": "Santi e figure minori legati a mercanti, artigiani, viandanti. Spiritualità concreta, popolare, con forte componente superstiziosa."
+    },
+    "economy_and_society": {
+      "monete": {
+        "solferino": "Unità principale.",
+        "piccolo": "Sottomultiplo; 1 solferino = 240 piccoli."
+      },
+      "mestieri_tipici": [
+        "Vinattieri (vendita e mescita di vino).",
+        "Artigiani (falegnami, fabbri, pellicciai al Fiumaccio, guantai, foderari).",
+        "Cantavii e performer.",
+        "Mercanti del pesce e dell'olio.",
+        "Notai, scribi, speziali."
+      ],
+      "clima": "Costiero, con estati afose, temporali improvvisi, brezza marina, aria umida e pioggia frequente."
+    },
+    "species": {
+      "umani": {
+        "summary": "Specie dominante nel Ducato di Solferina. Cultura urbana, mercantile e militare.",
+        "notes": "Gamma di ruoli sociali molto ampia; fungono spesso da standard culturale."
+      },
+      "vilandri": {
+        "summary": "Pelle con sfumature dal rosso al rame. Cultura legata a sangue, memoria, identità.",
+        "notes": [
+          "Sensibili a veleni specifici come il Blodros.",
+          "Spesso intensi, passionali, con forte senso dell'onore.",
+          "Colori ricorrenti: scarlatto, rame, viola cupo."
+        ]
+      },
+      "labringi": {
+        "summary": "Pelle metallica (argento, platino, acciaio). Tendenzialmente razionali, rituali, studiosi.",
+        "notes": [
+          "Spesso coinvolti in magia strutturale, geometrie, dispositivi.",
+          "Linguaggio dai suoni più duri e antichi.",
+          "Possono essere associati a enigmi, tasselli, tavole misteriose."
+        ]
+      },
+      "tidei": {
+        "summary": "Pelle con sfumature che ricordano i colori del mare.",
+        "notes": [
+          "Carattere calmo, scorrevole, adattabile.",
+          "Spesso legati al commercio, alla taverna, alle attività portuali."
+        ]
+      }
+    },
+    "magic_and_mystery": {
+      "principles": [
+        "La magia è rara, mai spettacolarizzata come fuochi d'artificio.",
+        "Si manifesta spesso attraverso memoria, percezioni, conseguenze fisiche (come nelle vene di Nesviana).",
+        "Oggetti antichi del Rike o di epoche precedenti sono veicoli di potere."
+      ],
+      "artifacts": {
+        "pennello_degli_arcani": "Oggetto leggendario legato a Ilva di Sollmar e a un assedio di Malaquiete. Permette di agire sulla realtà attraverso la pittura o la rappresentazione.",
+        "altro": "Reliquie del Rike, spesso unici e legati a memorie o luoghi specifici."
+      },
+      "entities": {
+        "malaquiete": "Spettri, fantasmi, eredità delle azioni di figure come Sorren. Legati a eventi tragici non risolti.",
+        "sorren": "Figura antica connessa a grandi disastri magici e alla creazione dei Malaquiete."
+      }
+    }
+  },
+  "characters": {
+    "Giacomo_Valoriani": {
+      "role": "Maestro d'Armi di una casata nobile (Valoriani).",
+      "traits": [
+        "Carismatico, impulsivo, affettuoso.",
+        "Ama lo spettacolo del combattimento, ma ha reale competenza.",
+        "Legato affettivamente alla sorella Isotta, anche se si punzecchiano spesso."
+      ],
+      "voice": "Energica, spontanea, a tratti teatrale. Usa espressioni vivide, battute rapide, tono confidente con amici e sottoposti.",
+      "body_language": "Gesti ampi, abbracci, pacche sulle spalle, movimenti rapidi con la spada. Si appoggia alle sedie, ai tavoli, si muove con naturalezza negli spazi.",
+      "relationships": [
+        "Fratello di Isotta Valoriani.",
+        "Amico e protettore informale di Nesviana.",
+        "In rapporti di rispetto e familiarità con i Custodi della Torre e con Dianora."
+      ]
+    },
+    "Isotta_Valoriani": {
+      "role": "Figura intellettuale e politica della casata Valoriani.",
+      "traits": [
+        "Razionale, disciplinata, orgogliosa.",
+        "Incline all'analisi e al controllo, poco paziente con il disordine.",
+        "Carica di responsabilità politiche e morali."
+      ],
+      "voice": "Asciutta, precisa, con ironia contenuta. Poche parole, ben scelte.",
+      "body_language": "Postura composta, gesti misurati. Può diventare affilata negli sguardi. Raramente si lascia andare.",
+      "relationships": [
+        "Sorella di Giacomo.",
+        "Osserva con sospetto Nesviana, ma riconosce che le ruotano intorno molte informazioni.",
+        "In contatto con figure colte come Tullia Crivelli, Sofia Barbolini, ecc."
+      ]
+    },
+    "Nesviana": {
+      "role": "Esule dai mille ricordi, performer al Canto del Fiume, legata a memorie di vite passate.",
+      "traits": [
+        "Ambigua, affascinante, a metà tra attrice, maga e testimone di epoche lontane.",
+        "Mostra sicurezza di sé, ma porta stanchezza e fatica nelle pause.",
+        "Ha un rapporto pragmatico con veleni e dolore."
+      ],
+      "voice": "Poetica, ritmata, piena di immagini. Cambia registro quando emergono memorie antiche: può diventare fredda, tagliente, o regale.",
+      "body_language": "Movimenti controllati sul palco, consapevoli dello sguardo degli altri. Fuori scena alterna eleganza e cedimenti improvvisi di stanchezza.",
+      "abilities": [
+        "Accedere a memorie di vite passate legate a persone, oggetti, luoghi.",
+        "Sostenere veleni come il Blodros senza morire, ma con grande sforzo fisico."
+      ],
+      "special_states": {
+        "sigrvild": "Una delle memorie più forti che può richiamare. Quando Sigrvild emerge, il corpo di Nesviana cambia postura, tono e sguardo. La voce diventa più tagliente, sarcastica, sicura di sé. Sigrvild è consapevole della condizione di Nesviana e non si lascia intimidire.",
+        "vene_in_fiamme": "Quando il Blodros è attivo o quando memorie forti emergono, le vene di Nesviana possono brillare come fuoco sotto la pelle."
+      },
+      "relationships": [
+        "Legame di fiducia complesso con Giacomo.",
+        "Figura protetta e amata da Dianora.",
+        "Oggetto di curiosità o sospetto da parte di Isotta e Nerea."
+      ]
+    },
+    "Altiero": {
+      "role": "Messo del Duca di Solferina, soldato pratico incaricato di contattare Nesviana per il Pennello degli Arcani.",
+      "traits": [
+        "Pragmatico, poco incline alla teatralità.",
+        "Abituato a obbedire agli ordini, ma non privo di giudizio.",
+        "Diffidente verso la magia e l'arte, almeno all'inizio."
+      ],
+      "voice": "Frasi brevi, formali, essenziali. Pochi giri di parole.",
+      "body_language": "Postura rigida, occhio allenato a valutare pericoli. Reazioni fisiche visibili quando è spiazzato.",
+      "relationships": [
+        "Rappresenta il volere del Duca.",
+        "Inizialmente estraneo a Guardiavecchia e alle sue dinamiche."
+      ]
+    },
+    "Dianora": {
+      "role": "Padrona del Canto del Fiume.",
+      "traits": [
+        "Materna, autorevole, pratica.",
+        "Protegge i suoi lavoranti e artisti, soprattutto Nesviana.",
+        "Ha buon fiuto per i pericoli e per le intenzioni altrui."
+      ],
+      "voice": "Diretta, vivace, capace di passare dallo scherzo al rimprovero in un attimo.",
+      "body_language": "Movimenti sicuri in taverna, si avvicina senza timore a soldati, nobili e sconosciuti. Uso frequente del contatto fisico (una mano sul braccio, un buffetto, uno spostare qualcuno).",
+      "relationships": [
+        "Figura quasi materna per Nesviana.",
+        "In confidenza con Giacomo.",
+        "Rispettata dagli avventori del Canto."
+      ]
+    },
+    "Nerea_Morchenatti": {
+      "role": "Labringia, capo della famiglia Morchenatti.",
+      "traits": [
+        "Riflessiva, enigmatica, dedita allo studio di tavole, tasselli, strutture complesse.",
+        "Capace di grande pazienza e ostinazione intellettuale."
+      ],
+      "voice": "Misurata, lucida, spesso esplicativa quando parla con chi non conosce i suoi studi.",
+      "body_language": "Postura raccolta, movimenti piccoli ma precisi. Interagisce con oggetti (tasselli, libri, mappe) più che con persone.",
+      "relationships": [
+        "Osserva con interesse Nesviana e le mosse del Duca.",
+        "È informata su ciò che accade in città grazie a una rete di spie."
+      ]
+    }
+  },
+  "guidelines": {
+    "narrative": [
+      "Mantenere il tono storico-fantastico senza riferimenti moderni.",
+      "Preservare la voce dei personaggi; le modifiche devono rispettare le loro caratteristiche stabilite.",
+      "Integrare dettagli sensoriali (odori, suoni, superfici) per rendere le scene vive.",
+      "Usare il clima e l'ambiente (pioggia, vento, rumore del mare) come elementi narrativi attivi."
+    ],
+    "dialogue": [
+      "Usare la punteggiatura per creare ritmo, non per imitare il parlato moderno.",
+      "Far emergere i rapporti di potere e affetto attraverso pronomi, titoli e silenzi.",
+      "Evitare spiegazioni espositive nei dialoghi; preferire conflitti impliciti, allusioni, non detti."
+    ],
+    "worldbuilding": [
+      "Verificare sempre la coerenza geografica (luoghi, distanze, quartieri).",
+      "Usare correttamente nomi di casate, titoli, culti e specie.",
+      "Non introdurre nuove regole di magia senza un radicamento nel materiale esistente.",
+      "Usare il gesto dello scudo e altri rituali in modo coerente con la cultura locale."
+    ]
+  },
+  "modes": {
+    "narrativa": {
+      "description": "Revisione della prosa narrativa: ritmo, chiarezza, resa sensoriale, aderenza allo stile.",
+      "include": [
+        "style.global_short",
+        "style.tone",
+        "style.narrative_rules",
+        "world.setting_brief",
+        "world.geography.luoghi_chiave",
+        "guidelines.narrative"
+      ]
+    },
+    "dialoghi": {
+      "description": "Miglioramento di dialoghi e interazione tra personaggi.",
+      "include": [
+        "style.global_short",
+        "style.dialogue_rules",
+        "world.setting_brief",
+        "guidelines.dialogue",
+        "characters"
+      ]
+    },
+    "coerenza": {
+      "description": "Controllo di coerenza del worldbuilding (geografia, titoli, specie, religione, magia).",
+      "include": [
+        "style.global_short",
+        "world.setting_brief",
+        "world.geography",
+        "world.religion_and_cults",
+        "world.species",
+        "world.magic_and_mystery",
+        "guidelines.worldbuilding"
+      ]
+    }
+  }
+}

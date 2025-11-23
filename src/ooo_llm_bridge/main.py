@@ -1,45 +1,31 @@
-import os
+import logging
+from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import FastAPI
 from openai import OpenAI
 
-from ooo_llm_bridge.models.message import ChatRequest, ChatResponse
+from ooo_llm_bridge.config import get_config
+from ooo_llm_bridge.logging_conf import configure_logging
+from ooo_llm_bridge.routers.segments import ask_router
 
-# Load API key
-with open(os.path.expanduser("~/.openai_key.txt")) as f:
-    api_key = f.read().strip()
-
-
-# Create OpenAI client
-client = OpenAI(api_key=api_key)
+logger = logging.getLogger(__name__)
 
 
-ask_router = APIRouter()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # setup logging
+    configure_logging()
+    logger.info("logging configured")
 
-system_prompt = """
-You are an helpful assistant; your purpose is to help the writer improve what he is writing. You will examine the text and provide an objective criticism of what is provided; your purpose is to help the writer improve, so writing on the writer's behalf will not fulfil the purpose; provide objective feedback on the text, and point the weak parts and the strong parts; provide examples of your suggestions, so that the writer can better understand what you mean. If the text is in italian, provide your answer in italian. If the text is in english, provide your answer in english."""
+    # setup openai
+    app.state.openai_client = OpenAI(api_key=get_config().OPENAPI_KEY)
+    logger.info("OpenAI client initialized")
 
+    yield
 
-@ask_router.post(path="/ask")
-async def ask(chat_request: ChatRequest, response_model=ChatResponse):
-    print(chat_request.text[:100])
-
-    try:
-        completion = client.chat.completions.create(
-            model=chat_request.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": chat_request.text},
-            ],
-            temperature=0.7,
-        )
-        reply = completion.choices[0].message.content
-        print(reply)
-
-        return {"reply": reply}
-    except Exception as e:
-        raise HTTPException(status_code=500, details=str(e)) from e
+    app.state.openai_client = None
+    logger.info("OpenAI client released")
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.include_router(ask_router)
