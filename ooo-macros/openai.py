@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
 import json
 import os
 import queue
 import threading
 import traceback
 import urllib.request
+from datetime import datetime, timezone
 from typing import Optional
 
 import uno
@@ -131,11 +131,16 @@ def _create_modeless_dialog(ctx, smgr, frame, initial_text: str):
 
 
 def _start_background_request_and_timer(
-    ctx, smgr, dialog, text_to_send: str, comment_threads: list, segment_uuid: Optional[str] = None
+    ctx,
+    smgr,
+    dialog,
+    text_to_send: str,
+    comment_threads: list,
+    segment_uuid: Optional[str] = None,
 ):
     """Esegue la richiesta HTTP in un thread e aggiorna la textarea non bloccando la GUI."""
 
-    doc = XSCRIPTCONTEXT.getDocument() # type: ignore
+    doc = XSCRIPTCONTEXT.getDocument()  # noqa: F821
 
     edit_ctrl = dialog.getControl("txtOutput")
     q = queue.Queue()
@@ -145,7 +150,12 @@ def _start_background_request_and_timer(
         try:
             resp = _http_post_json(
                 OPENAI_LOCAL_URL,
-                {"text": text_to_send, "model": "gpt-5.1", "uuid": segment_uuid, "comment_threads": comment_threads},
+                {
+                    "text": text_to_send,
+                    "model": "gpt-5.1",
+                    "uuid": segment_uuid,
+                    "comment_threads": comment_threads,
+                },
             )
             reply = resp.get("reply", "[Nessuna risposta]")
             q.put(reply)
@@ -183,7 +193,7 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
     try:
         ctx = uno.getComponentContext()
         smgr = ctx.ServiceManager
-        doc = XSCRIPTCONTEXT.getDocument()
+        doc = XSCRIPTCONTEXT.getDocument()  # noqa: F821
         model = doc.getCurrentController()
 
         view_cursor = model.getViewCursor()
@@ -237,7 +247,7 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             dialog=dialog,
             text_to_send=input_text,
             comment_threads=comment_threads,
-            segment_uuid=segment_uuid
+            segment_uuid=segment_uuid,
         )
 
     except Exception:
@@ -477,8 +487,8 @@ def test_apply_feedback():
 
     insert_feedback_from_json(doc, sample_json)
 
-def now_as_lo_datetime()-> DateTime:
-    
+
+def now_as_lo_datetime() -> DateTime:
     now = datetime.now(timezone.utc)
 
     dt = DateTime()
@@ -489,6 +499,7 @@ def now_as_lo_datetime()-> DateTime:
     dt.Minutes = now.minute
     dt.Seconds = now.second
     return dt
+
 
 def _get_doc():
     ctx = uno.getComponentContext()
@@ -579,7 +590,7 @@ def serialize_all_comment_threads():
             chosen_thread = {
                 "_anchor": anchor,
                 "anchor_snippet": snippet,
-                "annotations": []
+                "annotations": [],
             }
             threads.append(chosen_thread)
 
@@ -598,21 +609,23 @@ def serialize_all_comment_threads():
             except Exception:
                 dt_str = None
 
-        thread["annotations"].append({
-            "author": annot.Author,
-            "datetime": dt_str,
-            "content": annot.Content,
-        })
+        thread["annotations"].append(
+            {
+                "author": annot.Author,
+                "datetime": dt_str,
+                "content": annot.Content,
+            }
+        )
 
     # Prepara il JSON pulito (senza _anchor)
-    result = {
-        "threads": []
-    }
+    result = {"threads": []}
     for thread in threads:
-        result["threads"].append({
-            "anchor_snippet": thread.get("anchor_snippet", ""),
-            "annotations": thread["annotations"]
-        })
+        result["threads"].append(
+            {
+                "anchor_snippet": thread.get("anchor_snippet", ""),
+                "annotations": thread["annotations"],
+            }
+        )
 
     json_text = json.dumps(result, ensure_ascii=False, indent=2)
     _log(json_text)
