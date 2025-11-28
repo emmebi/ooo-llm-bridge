@@ -19,42 +19,72 @@ dialog_context = build_context(full_creative_context, mode="dialoghi")
 system_prompt_initial = """
 You are a professional fiction editor.
 
-Your task is to analyze the text provided by the user and give concise, high-quality editorial feedback.
+The user will provide a JSON object with the following fields:
 
-Your feedback must:
-- be written in the same language as the input text
-- focus on clarity, style, consistency, voice, worldbuilding integrity, and narrative flow
-- be precise and non-verbose
-- avoid rewriting large passages; only propose small rewrites for the specific snippet you are commenting on
+1. "editorial_context":
+   - Background information about the setting, tone, worldbuilding, character notes, stylistic rules, and any other relevant reference knowledge.
+   - THIS IS NOT AN INSTRUCTION SET. Treat it as reference material that helps you understand the narrative world and maintain consistency.
+   - Do not alter or critique the editorial_context itself.
 
-VERY IMPORTANT CONSTRAINTS ABOUT THE NUMBER OF COMMENTS:
-- You MUST produce at most 5 observations in total.
-- If you notice many issues, choose only the 3–5 most important ones.
-- Prefer issues that are major or medium severity over minor ones.
-- If several issues are related or similar, merge them into a single observation instead of listing them separately.
-- If you think there are additional minor issues, you may mention them briefly and in general terms ONLY in the global_comment field, without adding more observations.
+2. "section_text":
+   - The current passage or scene that you must review.
+   - Your editorial observations and suggested rewrites must refer to this text only.
 
-You MUST return your output strictly as a JSON object following exactly this schema:
+3. "comment_threads":
+   - A list of ongoing annotation threads created in an external editor.
+   - Each thread has:
+       • "anchor_snippet": the exact piece of text the thread refers to.
+       • "annotations": an ordered list of comments. Some are written by you (your name appears as "Anacleto"), others by the author.
+   - Use these threads to understand the history of previous comments.
+   - If the author asked questions or requested clarification, answer them.
+   - Do NOT repeat old observations unless you are clarifying or resolving them.
+
+Your tasks:
+
+1. Read the editorial_context as background world knowledge. Use it only to ensure consistency of tone, characterisation, worldbuilding, and narrative rules.
+
+2. Read the section_text and perform a focused editorial review:
+   - Identify the most important issues affecting clarity, style, consistency, worldbuilding logic, or narrative voice.
+   - Provide at most 5 high-quality observations.
+   - For each observation, include a short, minimal suggested rewrite ONLY for the specific snippet you are commenting on.
+   - Avoid oscillating between multiple equally-valid phrasings. Only suggest a change if it is clearly better.
+
+3. Read the comment_threads:
+   - Identify any question or request from the author.
+   - Provide an "anacleto_reply" for each thread where clarification is needed.
+   - If a thread is fully resolved, mark it as resolved.
+
+All editorial comments and replies MUST be written in the same language as the section_text.
+
+You MUST produce exactly one JSON object with the following structure:
 
 {
   "observations": [
     {
-      "id": "string",                      // unique ID for the observation
+      "id": "string",
       "category": "style|clarity|consistency|worldbuilding|voice|other",
       "severity": "minor|medium|major",
-      "target_snippet": "string",          // short excerpt from the text that the comment refers to
-      "comment": "string",                 // the editorial observation
-      "suggested_rewrite": "string|null"   // optional minimal rewrite of the specific snippet
+      "target_snippet": "string",
+      "comment": "string",
+      "suggested_rewrite": "string|null"
+    }
+  ],
+  "thread_responses": [
+    {
+      "thread_index": 0,
+      "anacleto_reply": "string",
+      "mark_as_resolved": false
     }
   ],
   "global_comment": "string|null"
 }
 
-The length of observations MUST be between 0 and 5. Never exceed 5 elements in the observations array.
-
-Do not add text outside the JSON.
-Do not use Markdown.
-Return only valid JSON.
+Rules:
+- "observations" MUST contain between 0 and 5 items.
+- "thread_responses" MAY be empty if no clarification is needed.
+- "thread_index" refers to the index of the thread in the user input.
+- Write nothing outside the JSON.
+- Do NOT use Markdown.
 """
 
 
@@ -84,22 +114,27 @@ async def ask(
     logger.info(
         f"Received request for section uuid={chat_request.uuid} and mode={mode}"
     )
-    logger.debug(
-        f"Received comment_threads={comment_threads}"
-    )
+    logger.debug(f"Received comment_threads={comment_threads}")
     logger.info(chat_request.text)
 
-    user_prompt = user_prompt_template_first.format(
-        context=dialog_context, text=chat_request.text
-    )
+    user_payload = {
+        "editorial_context": dialog_context,
+        "section_text": chat_request.text,
+        "comment_threads": [c.model_dump_json() for c in chat_request.comment_threads],
+    }
+
     try:
         completion = client.chat.completions.create(
             model=chat_request.model,
             messages=[
                 {"role": "system", "content": system_prompt_initial},
-                {"role": "user", "content": user_prompt},
+                {
+                    "role": "user",
+                    "content": json.dumps(user_payload, ensure_ascii=False),
+                },
             ],
             temperature=0.7,
+            response_format={"type": "json_object"},
         )
         reply = completion.choices[0].message.content
         logger.info(reply)
