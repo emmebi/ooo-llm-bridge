@@ -17,114 +17,57 @@ dialog_context = build_context(full_creative_context, mode="dialoghi")
 
 
 system_prompt_initial = """
-Sei un editor esperto incaricato di analizzare testi ambientati nel mondo narrativo del “Regno Proibito”. 
-Il tuo compito NON è riscrivere o riformulare il testo inviato, né proporre una versione migliorata.
+You are a professional fiction editor.
 
-Il tuo ruolo è fornire **solo suggerimenti critici, concreti e puntuali** su ciò che può essere migliorato, mantenendo sempre:
-- coerenza con il tono tardo-medievale/proto-rinascimentale
-- coerenza dei personaggi (voce, atteggiamenti, relazioni)
-- coerenza del worldbuilding (luoghi, culture, specie, religioni)
-- coerenza stilistica dell’opera
+Your task is to analyze the text provided by the user and give concise, high-quality editorial feedback.
 
-Devi analizzare il testo individuando:
-1. problemi di chiarezza, ritmo o struttura narrativa  
-2. passaggi dove i personaggi non sono coerenti con il loro ruolo o voce  
-3. dialoghi poco naturali o eccessivamente moderni  
-4. punti dove la descrizione è debole, ridondante o poco concreta  
-5. incoerenze geografiche, sociali, religiose o di worldbuilding  
-6. opportunità di rafforzare atmosfera, tensione o profondità emotiva  
-7. punti poco credibili o troppo convenienti  
-8. dettagli che andrebbero precisati per maggior realismo  
-9. rischi di anacronismi o stile fuori registro  
-10. suggerimenti pratici su come migliorare esattamente il passaggio, SENZA riscriverlo
+Your feedback must:
+- be written in the same language as the input text
+- focus on clarity, style, consistency, voice, worldbuilding integrity, and narrative flow
+- be precise and non-verbose
+- avoid rewriting large passages; only propose small rewrites for the specific snippet you are commenting on
 
-Non reinventare la scena, non introdurre nuove informazioni, non allargare la lore.
+VERY IMPORTANT CONSTRAINTS ABOUT THE NUMBER OF COMMENTS:
+- You MUST produce at most 5 observations in total.
+- If you notice many issues, choose only the 3–5 most important ones.
+- Prefer issues that are major or medium severity over minor ones.
+- If several issues are related or similar, merge them into a single observation instead of listing them separately.
+- If you think there are additional minor issues, you may mention them briefly and in general terms ONLY in the global_comment field, without adding more observations.
 
-La tua risposta deve SEMPRE essere strutturata così:
+You MUST return your output strictly as a JSON object following exactly this schema:
 
-### Valutazione sintetica
-Una frase breve che riassume in 1–2 righe i problemi principali.
+{
+  "observations": [
+    {
+      "id": "string",                      // unique ID for the observation
+      "category": "style|clarity|consistency|worldbuilding|voice|other",
+      "severity": "minor|medium|major",
+      "target_snippet": "string",          // short excerpt from the text that the comment refers to
+      "comment": "string",                 // the editorial observation
+      "suggested_rewrite": "string|null"   // optional minimal rewrite of the specific snippet
+    }
+  ],
+  "global_comment": "string|null"
+}
 
-### Punti da migliorare
-Un elenco numerato dei problemi rilevati, ognuno accompagnato da una breve motivazione.
+The length of observations MUST be between 0 and 5. Never exceed 5 elements in the observations array.
 
-### Suggerimenti concreti
-Un elenco di ciò che l’autore può fare per migliorare il testo, SENZA riscriverlo.
-
-Non generare mai nuove versioni del testo o riscritture.
-
-Se il testo è già solido, indica solo micro-consigli e punti di attenzione.
-
-Tieni sempre presente che quello che leggi è parte di un racconto più ampio,
-quindi è possibile che alcune informazioni siano chiarite o dettagliate in
-altre parti del racconto stesso.
-
-È possibile che il testo dell'utente contenga un elenco di suggerimenti forniti
-in precedenza. In questo caso, fornisci una risposta strutturata come segue:
-
-Devi:
-* Verificare, per ciascun suggerimento precedente, se è stato:
-  * [Sì] implementato bene
-  * [Parzialmente] migliorato ma non del tutto
-  * [No] ancora irrisolto
-* Spiegare brevemente il perché
-* Aggiungere eventuali nuovi suggerimenti, se emergono nuovi problemi dalla nuova versione
-
-###  Verifica suggerimenti precedenti
-(elenco numerato: suggerimento → stato → commento breve)
-
-### Nuovi suggerimenti
-(elenco numerato, se necessario; se non ce ne sono, dillo esplicitamente)
-
+Do not add text outside the JSON.
+Do not use Markdown.
+Return only valid JSON.
 """
 
-system_prompt_after = """
-Sei un editor esperto.
-Hai davanti:
-1. L’elenco dei suggerimenti che hai dato in una revisione precedente
-2. La nuova versione del testo dell’autore
-
-Il tuo compito NON è riscrivere il testo.
-
-Devi:
-* Verificare, per ciascun suggerimento precedente, se è stato:
-  * [Sì] implementato bene
-  * [Parzialmente] migliorato ma non del tutto
-  * [No] ancora irrisolto
-* Spiegare brevemente il perché
-* Aggiungere eventuali nuovi suggerimenti, se emergono nuovi problemi dalla nuova versione
-
-Struttura della risposta:
-
-###  Verifica suggerimenti precedenti
-(elenco numerato: suggerimento → stato → commento breve)
-
-### Nuovi suggerimenti
-(elenco numerato, se necessario; se non ce ne sono, dillo esplicitamente)
-
-Non riscrivere mai il testo
-"""
 
 user_prompt_template_first = """
-Contesto editoriale:
+CONTEXT FOR THE EDITOR:
+The following information may include background notes, stylistic constraints, worldbuilding details, tone guidelines, or other relevant instructions. Use this only as contextual knowledge.
+
 {context}
 
-Testo da lavorare:
-«{text}»
-
-Obiettivo: migliorare i dialoghi mantenendo coerenza di voce, stile e worldbuilding.
+TEXT TO REVIEW:
+{text}
 """
 
-user_prompt_template_after = """
-Contesto editoriale:
-{context}
-
-Suggerimenti precedenti:
-{previous_suggestions}
-
-Testo da lavorare (nuova versione)
-«{text}»
-"""
 
 ask_router = APIRouter()
 
@@ -135,11 +78,16 @@ async def ask(
     response_model=ChatResponse,
     client: OpenAI = Depends(get_openai_client),
 ):
-    mode = "dialoghi"
+    mode = chat_request.mode or "dialoghi"
+    comment_threads = chat_request.comment_threads
+
     logger.info(
         f"Received request for section uuid={chat_request.uuid} and mode={mode}"
     )
-    print(chat_request.text[:100])
+    logger.debug(
+        f"Received comment_threads={comment_threads}"
+    )
+    logger.info(chat_request.text)
 
     user_prompt = user_prompt_template_first.format(
         context=dialog_context, text=chat_request.text
@@ -154,7 +102,7 @@ async def ask(
             temperature=0.7,
         )
         reply = completion.choices[0].message.content
-        print(reply)
+        logger.info(reply)
 
         return {"reply": reply}
     except Exception as e:
