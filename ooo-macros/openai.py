@@ -135,12 +135,14 @@ def _start_background_request_and_timer(
     smgr,
     dialog,
     text_to_send: str,
-    comment_threads: list,
+    anchor_threads: list,
     segment_uuid: Optional[str] = None,
 ):
     """Esegue la richiesta HTTP in un thread e aggiorna la textarea non bloccando la GUI."""
 
     doc = XSCRIPTCONTEXT.getDocument()  # noqa: F821
+
+    comment_threads = _serialize_annotation_threads(anchor_threads)
 
     edit_ctrl = dialog.getControl("txtOutput")
     q = queue.Queue()
@@ -172,7 +174,7 @@ def _start_background_request_and_timer(
         try:
             reply = q.get_nowait()
 
-            insert_feedback_from_json(doc, reply)
+            _insert_feedback_from_json(doc, anchor_threads, reply)
 
             # Aggiorna la textarea con la risposta
             edit_ctrl.setText(str(reply))
@@ -234,7 +236,7 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             box.execute()
             return
 
-        comment_threads = serialize_all_comment_threads()
+        anchor_threads = _collect_annotations_in_threads(doc)
 
         # Create modeless dialog and start background request
         frame = model.getFrame()
@@ -246,7 +248,7 @@ def ask_openai_with_selection_or_upto_cursor_modeless(event=None):
             smgr=smgr,
             dialog=dialog,
             text_to_send=input_text,
-            comment_threads=comment_threads,
+            anchor_threads=anchor_threads,
             segment_uuid=segment_uuid,
         )
 
@@ -355,7 +357,7 @@ def get_last_bookmark_in_selection():
     return last_bookmark
 
 
-def insert_feedback_from_json(doc, json_text):
+def _insert_feedback_from_json(doc, anchor_threads, json_text):
     """
     Core helper: given a LibreOffice Writer document and a JSON string
     in the format:
@@ -450,44 +452,6 @@ def insert_feedback_from_json(doc, json_text):
     #     text.insertTextContent(cursor, gc_annotation, False)
 
 
-def test_apply_feedback():
-    """
-    Test macro: uses a hard-coded JSON example.
-    Replace the JSON string with the real response from your FastAPI/OpenAI call,
-    or remove this and call insert_feedback_from_json() directly from your HTTP code.
-    """
-    ctx = uno.getComponentContext()
-    smgr = ctx.getServiceManager()
-    desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-    doc = desktop.getCurrentComponent()
-
-    sample_json = """
-    {
-      "observations": [
-        {
-          "id": "obs1",
-          "category": "style",
-          "severity": "minor",
-          "target_snippet": "La pioggia iniziò a battere sugli scuri dello studiolo di Isotta",
-          "comment": "Il registro qui è leggermente più lirico del resto del brano. Valuta se allinearlo.",
-          "suggested_rewrite": "La pioggia cominciò a picchiare sugli scuri dello studiolo di Isotta."
-        },
-        {
-          "id": "obs2",
-          "category": "clarity",
-          "severity": "medium",
-          "target_snippet": "Nesviana rise.",
-          "comment": "La reazione sembra un po' brusca; forse si può preparare meglio il motivo della risata.",
-          "suggested_rewrite": null
-        }
-      ],
-      "global_comment": "Nel complesso il passo funziona bene, con qualche piccola incertezza di registro e di motivazione emotiva."
-    }
-    """
-
-    insert_feedback_from_json(doc, sample_json)
-
-
 def now_as_lo_datetime() -> DateTime:
     now = datetime.now(timezone.utc)
 
@@ -499,14 +463,6 @@ def now_as_lo_datetime() -> DateTime:
     dt.Minutes = now.minute
     dt.Seconds = now.second
     return dt
-
-
-def _get_doc():
-    ctx = uno.getComponentContext()
-    smgr = ctx.getServiceManager()
-    desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-    doc = desktop.getCurrentComponent()
-    return doc
 
 
 def _get_all_annotations(doc):
@@ -526,7 +482,7 @@ def _get_all_annotations(doc):
     return annotations
 
 
-def _range_contains(text, outer, inner):
+def _range_with_same_end(text, outer, inner):
     """
     True if inner.start == outer.end
     """
@@ -539,23 +495,20 @@ def _range_contains(text, outer, inner):
     return cmp_from_end == 0
 
 
-def serialize_all_comment_threads():
+def _collect_annotations_in_threads(doc) -> list:
     """
     - scandisce tutto il documento
     - trova tutte le annotazioni
     - le raggruppa in thread per "range" (contenimento)
     - per ogni thread usa lo snippet evidenziato (range più esteso trovato)
-    - stampa un JSON con tutti i thread
     """
-    doc = _get_doc()
     if not hasattr(doc, "Text"):
         _log("Current component is not a text document.")
         return
 
     text = doc.Text
-    all_annotations = _get_all_annotations(doc)
 
-    # Ogni thread: {"_anchor": XTextRange, "anchor_snippet": str, "annotations": [...]}
+    # we create a list of  {"_anchor": XTextRange, "anchor_snippet": str, "annotations": [...]}
     threads = []
 
     def find_or_create_thread_for_anchor(anchor):
@@ -570,11 +523,11 @@ def serialize_all_comment_threads():
         for thread in threads:
             ref_anchor = thread["_anchor"]
             # anchor dentro ref_anchor
-            if _range_contains(text, ref_anchor, anchor):
+            if _range_with_same_end(text, ref_anchor, anchor):
                 chosen_thread = thread
                 break
             # oppure ref_anchor dentro anchor (nuovo range più grande)
-            if _range_contains(text, anchor, ref_anchor):
+            if _range_with_same_end(text, anchor, ref_anchor):
                 chosen_thread = thread
                 # aggiorna l'anchor se il nuovo è più esteso / migliore
                 thread["_anchor"] = anchor
@@ -596,38 +549,36 @@ def serialize_all_comment_threads():
 
         return chosen_thread
 
+    all_annotations = _get_all_annotations(doc)
     for annot in all_annotations:
         anchor = annot.Anchor
         thread = find_or_create_thread_for_anchor(anchor)
+        thread["annotation"].append(annot)
 
-        # Converte DateTimeValue in stringa se presente
-        dt = getattr(annot, "DateTimeValue", None)
-        dt_str = None
-        if dt is not None:
-            try:
-                dt_str = f"{dt.Year:04d}-{dt.Month:02d}-{dt.Day:02d}T{dt.Hours:02d}:{dt.Minutes:02d}:{dt.Seconds:02d}"
-            except Exception:
-                dt_str = None
+    return threads
 
-        thread["annotations"].append(
-            {
-                "author": annot.Author,
-                "datetime": dt_str,
-                "content": annot.Content,
-            }
-        )
 
-    # Prepara il JSON pulito (senza _anchor)
-    result = {"threads": []}
-    for thread in threads:
-        result["threads"].append(
-            {
-                "anchor_snippet": thread.get("anchor_snippet", ""),
-                "annotations": thread["annotations"],
-            }
-        )
+def _serialize_annotation_threads(threads: list) -> list:
+    result = []
+    for t in threads:
+        d = {"anchor_snippet": t["anchor_snippet"], "annotations": []}
+        for a in threads["annotations"]:
+            d["annotations"].append(
+                {
+                    "author": a.Author,
+                    "datetime": _annotation_dt_as_str(a),
+                    "content": a.Content,
+                }
+            )
+            result.append(d)
+    return result
 
-    json_text = json.dumps(result, ensure_ascii=False, indent=2)
-    _log(json_text)
 
-    return result["threads"]
+def _annotation_dt_as_str(annotation) -> Optional[str]:
+    dt = getattr(annotation, "DateTimeValue", None)
+    if dt is None:
+        return None
+    try:
+        return f"{dt.Year:04d}-{dt.Month:02d}-{dt.Day:02d}T{dt.Hours:02d}:{dt.Minutes:02d}:{dt.Seconds:02d}"
+    except Exception:
+        return None
