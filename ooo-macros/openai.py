@@ -5,7 +5,7 @@ import threading
 import traceback
 import urllib.request
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 import uno
 import unohelper
@@ -371,6 +371,14 @@ def _insert_feedback_from_json(doc, anchor_threads, json_text):
           "target_snippet": "string",
           "comment": "string",
           "suggested_rewrite": "string or null"
+        },
+      ],
+
+      "thread_responses": [
+        {
+            "thread_id": "string",
+            "anacleto_reply": "string",
+            "mark_as_resolved": false
         }
       ],
       "global_comment": "string or null"
@@ -428,16 +436,36 @@ def _insert_feedback_from_json(doc, anchor_threads, json_text):
 
         content = "\n".join(lines)
 
-        # Create the annotation field
-        annotation = doc.createInstance("com.sun.star.text.TextField.Annotation")
-        annotation.Author = EDITOR_NAME
-        annotation.Content = content
-        annotation.DateTimeValue = dt
+        annotation = _create_annotation_field(doc, EDITOR_NAME, content, dt)
 
         cursor = text.createTextCursorByRange(found)
 
         # Insert the annotation at the found range
         text.insertTextContent(cursor, annotation, True)
+
+    # we create a thread_id -> anchor_thread index
+    at_index = {tr["thread_id"]: tr for tr in anchor_threads}
+    thread_responses = data["thread_responses"]
+    for tr in thread_responses:
+        tr_id = tr["thread_id"]
+        if tr_id not in at_index:
+            _log(f"Error: received tr_id={tr_id} not in existing threads")
+            continue
+        # note: make this robust to handle the case that annotations is empty
+        # note: also be sure to attach to the last annotation
+        previous_annotation = at_index[tr_id]["annotations"][-1]
+        annotation = _create_annotation_field(
+            doc, EDITOR_NAME, tr["anacleto_reply"], dt
+        )
+        cursor = text.createTextCursorByRange(previous_annotation.Anchor.getEnd())
+        text.insertTextContent(cursor, annotation, False)
+
+        if tr["mark_as_resolved"]:
+            for a in at_index[tr_id]["annotations"]:
+                a.setPropertyValue("Resolved", True)
+
+            # we need to resolve also the latest created annotation
+            annotation.setPropertyValue("Resolved", True)
 
     # Optional global comment at the start of the document
     # global_comment = data.get("global_comment")
@@ -450,6 +478,15 @@ def _insert_feedback_from_json(doc, anchor_threads, json_text):
     #     gc_annotation.Content = global_comment
 
     #     text.insertTextContent(cursor, gc_annotation, False)
+
+
+def _create_annotation_field(doc, author: str, content: str, dt: DateTime):
+    # Create the annotation field
+    annotation = doc.createInstance("com.sun.star.text.TextField.Annotation")
+    annotation.Author = author
+    annotation.Content = content
+    annotation.DateTimeValue = dt
+    return annotation
 
 
 def now_as_lo_datetime() -> DateTime:
@@ -541,6 +578,7 @@ def _collect_annotations_in_threads(doc) -> list:
         if chosen_thread is None:
             snippet = anchor.getString().replace("\n", " ")
             chosen_thread = {
+                "thread_id": f"TR-{len(threads) + 1}",
                 "_anchor": anchor,
                 "anchor_snippet": snippet,
                 "annotations": [],
@@ -553,16 +591,33 @@ def _collect_annotations_in_threads(doc) -> list:
     for annot in all_annotations:
         anchor = annot.Anchor
         thread = find_or_create_thread_for_anchor(anchor)
-        thread["annotation"].append(annot)
+        thread["annotations"].append(annot)
+
+    for t in threads:
+        if len(t["annotations"]) > 1:
+            t["annotations"] = sorted(
+                t["annotations"], key=lambda a: _dt_to_tuple(a.DateTimeValue)
+            )
 
     return threads
 
 
 def _serialize_annotation_threads(threads: list) -> list:
     result = []
+
+    t_ids = set()
     for t in threads:
-        d = {"anchor_snippet": t["anchor_snippet"], "annotations": []}
-        for a in threads["annotations"]:
+        if t["thread_id"] in t_ids:
+            raise ValueError(f"Duplicate thread_id={t['thread_id']}")
+        t_ids.add(t["thread_id"])
+
+    for t in threads:
+        d = {
+            "thread_id": t["thread_id"],
+            "anchor_snippet": t["anchor_snippet"],
+            "annotations": [],
+        }
+        for a in t["annotations"]:
             d["annotations"].append(
                 {
                     "author": a.Author,
@@ -570,7 +625,10 @@ def _serialize_annotation_threads(threads: list) -> list:
                     "content": a.Content,
                 }
             )
-            result.append(d)
+        result.append(d)
+
+    _log(json.dumps(result, ensure_ascii=False, indent=2))
+
     return result
 
 
@@ -582,3 +640,7 @@ def _annotation_dt_as_str(annotation) -> Optional[str]:
         return f"{dt.Year:04d}-{dt.Month:02d}-{dt.Day:02d}T{dt.Hours:02d}:{dt.Minutes:02d}:{dt.Seconds:02d}"
     except Exception:
         return None
+
+
+def _dt_to_tuple(dt: DateTime) -> Tuple[int]:
+    return (dt.Year, dt.Month, dt.Day, dt.Hours, dt.Minutes, dt.Seconds)

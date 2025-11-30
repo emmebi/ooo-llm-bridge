@@ -17,6 +17,7 @@ class Annotation(BaseModel):
 
 class CommentThread(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    thread_id: str
     anchor_snippet: str
     annotations: list[Annotation]
 
