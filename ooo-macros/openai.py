@@ -4,6 +4,7 @@ import queue
 import threading
 import traceback
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -451,13 +452,16 @@ def _insert_feedback_from_json(doc, anchor_threads, json_text):
         if tr_id not in at_index:
             _log(f"Error: received tr_id={tr_id} not in existing threads")
             continue
-        # note: make this robust to handle the case that annotations is empty
-        # note: also be sure to attach to the last annotation
-        previous_annotation = at_index[tr_id]["annotations"][-1]
+        root_annotation = at_index[tr_id]["annotations"][0]
         annotation = _create_annotation_field(
             doc, EDITOR_NAME, tr["anacleto_reply"], dt
         )
-        cursor = text.createTextCursorByRange(previous_annotation.Anchor.getEnd())
+        annotation.setPropertyValue(
+            "ParentName", root_annotation.getPropertyValue("Name")
+        )
+
+        # collapsed cursor at root's anchor start — all replies share the root's anchor position
+        cursor = text.createTextCursorByRange(root_annotation.Anchor.getStart())
         text.insertTextContent(cursor, annotation, False)
 
         if tr["mark_as_resolved"]:
@@ -481,11 +485,11 @@ def _insert_feedback_from_json(doc, anchor_threads, json_text):
 
 
 def _create_annotation_field(doc, author: str, content: str, dt: DateTime):
-    # Create the annotation field
     annotation = doc.createInstance("com.sun.star.text.TextField.Annotation")
     annotation.Author = author
     annotation.Content = content
     annotation.DateTimeValue = dt
+    annotation.setPropertyValue("Name", f"__Anacleto__{uuid.uuid4().hex}")
     return annotation
 
 
@@ -517,6 +521,17 @@ def _get_all_annotations(doc):
         if field.supportsService("com.sun.star.text.TextField.Annotation"):
             annotations.append(field)
     return annotations
+
+
+def print_annotation_properties():
+    _log("Preparing to log annotation properties")
+    doc = XSCRIPTCONTEXT.getDocument()  # noqa: F821
+    annotations = _get_all_annotations(doc)
+    _log(f"Found {len(annotations)} annotations")
+    for a in _get_all_annotations(doc):
+        info = a.getPropertySetInfo()
+        for p in info.getProperties():
+            _log(f"Property {p.Name}={str(a.getPropertyValue(p.Name))}")
 
 
 def _range_with_same_end(text, outer, inner):
