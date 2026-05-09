@@ -1,31 +1,47 @@
 # Description
 
-This is a small bridge between LibreOffice/OpenOffice and LLM. At the moment it is working with OpenAI API, but in my dreams I would like to enable differnt LLMs, both local and remote.
+This is a small bridge between LibreOffice/OpenOffice and an LLM. At the moment it works with the OpenAI API, but the goal is to support different LLMs, both local and remote.
 
 I wrote this prototype (with the help of ChatGPT) to automate my workflow when writing fiction.
 
-When I write, I often submit what I have written to ChatGPT to get a feedback. I usually aim at having feedback rather than having the LLM rewrite the things for me.
+When I write, I often submit what I have written to ChatGPT to get feedback. I usually aim at having feedback rather than having the LLM rewrite things for me.
 
-This tool is currently composed of two parts:
-* a trivial REST bridge, which receives the text to be reviewed, from OOO, submits to the LLM and returns back the reply (or the error)
-* a python macro running inside OOO, which sends to the REST bridge either the whole text up to the cursor or the text selected; once the reply arrives, it shows it in a separate dialog. The dialog is not modal, and the request happens on a different thread, so that OOO is not blocked while waiting for the answer.
+This tool is composed of two parts:
 
-Note that the few comments are in italian; I plan to fix this as soon as possible.
+* A REST bridge (`src/ooo_llm_bridge/`), which receives the text to be reviewed from LibreOffice, submits it to the LLM, and returns the reply. It is built with FastAPI and the OpenAI Python SDK.
+* A Python macro (`ooo-macros/openai.py`) running inside LibreOffice Writer, which:
+  * Sends either the selected text or everything up to the cursor to the bridge
+  * Collects all existing comment threads in the document and includes them in the request, so the LLM can read the ongoing editorial conversation
+  * Receives a structured JSON response containing new observations and replies to existing threads
+  * Inserts new observations directly into the document as Writer annotations, anchored to the relevant text snippets
+  * Appends the LLM's replies inside existing comment threads and optionally marks threads as resolved
+  * Shows the raw response in a non-modal dialog while the request is in progress
+  * Runs the HTTP request on a background thread so LibreOffice is not blocked while waiting
+
+The LLM acts as a fiction editor named "Anacleto". It responds in the same language as the text, tracks open and resolved editorial issues across multiple invocations, and limits the total number of open issues to keep feedback actionable.
 
 # Installation
 
-* install the required libraries from requirements.txt
-* copy the openai.py in the script directory for your LibreOffice; the exact location varies depending on the OS; on Windows is %AppData%\Roaming\LibreOffice\4\user\Scripts\python
-* start the bridge from within the src/ directory with the command
-```
-uvicorn ooo_llm_bridge.main:app
-```
-
-The bridge expects to find your API key in .openai_key.txt. 
+* Install the required libraries:
+  ```
+  pip install -r requirements.txt
+  ```
+* Copy `ooo-macros/openai.py` to LibreOffice's Python scripts directory. The exact location varies by OS; on Windows it is:
+  ```
+  %AppData%\Roaming\LibreOffice\4\user\Scripts\python
+  ```
+* Create a `.env` file in the `src/` directory (see `.env.example`) with your OpenAI API key:
+  ```
+  OPENAPI_KEY=your-openai-api-key
+  ```
+* Start the bridge from within the `src/` directory:
+  ```
+  uvicorn ooo_llm_bridge.main:app
+  ```
 
 # Future plans
 
-* select/use different prompts
-* add more back-ends
-* create an add-on instead of simple macros
-* remove the need of a separate bridge
+* Select/use different prompts
+* Add more back-ends
+* Create an add-on instead of simple macros
+* Remove the need for a separate bridge
